@@ -1,6 +1,9 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.IO;
+using System.Data;
 
 namespace MayTinhServer
 {
@@ -8,123 +11,121 @@ namespace MayTinhServer
     {
         static void Main(string[] args)
         {
-            TcpListener server =
-                new TcpListener(IPAddress.Any, 5000);
-
+            // Lắng nghe tại cổng 5000
+            TcpListener server = new TcpListener(IPAddress.Any, 5000);
             server.Start();
 
-            Console.WriteLine(
-                "Server đang chay..."
-            );
+            Console.WriteLine("Server dang chay tai cong 5000...");
 
             while (true)
             {
                 try
                 {
-                    // Chờ client kết nối
-                    TcpClient client =
-                        server.AcceptTcpClient();
+                    TcpClient client = server.AcceptTcpClient();
+                    NetworkStream stream = client.GetStream();
 
-                    Console.WriteLine(
-                        "Client đã kết nối!"
-                    );
+                    byte[] data = new byte[1024];
+                    int byteCount = stream.Read(data, 0, data.Length);
+                    string message = Encoding.UTF8.GetString(data, 0, byteCount);
 
-                    NetworkStream stream =
-                        client.GetStream();
+                    Console.WriteLine("\nNhan tu Client: " + message);
 
-                    byte[] data =
-                        new byte[1024];
+                    // GỌI LOGIC XỬ LÝ TỔNG HỢP Ở ĐÂY
+                    string phanHoi = ExecuteServerLogic(message);
 
-                    int byteCount =
-                        stream.Read(
-                            data,
-                            0,
-                            data.Length
-                        );
+                    // Gửi kết quả lại cho Client
+                    byte[] gui = Encoding.UTF8.GetBytes(phanHoi);
+                    stream.Write(gui, 0, gui.Length);
 
-                    string message =
-                        Encoding.UTF8.GetString(
-                            data,
-                            0,
-                            byteCount
-                        );
+                    Console.WriteLine("Phan hoi: " + phanHoi);
 
-                    Console.WriteLine(
-                        "Nhận: " + message
-                    );
-
-                    string[] parts =
-                        message.Split('|');
-
-                    double a =
-                        double.Parse(parts[0]);
-
-                    string pheptoan =
-                        parts[1];
-
-                    double b =
-                        double.Parse(parts[2]);
-
-                    string ketqua = "";
-
-                    switch (pheptoan)
-                    {
-                        case "+":
-                            ketqua =
-                                (a + b).ToString();
-                            break;
-
-                        case "-":
-                            ketqua =
-                                (a - b).ToString();
-                            break;
-
-                        case "*":
-                            ketqua =
-                                (a * b).ToString();
-                            break;
-
-                        case "/":
-                            if (b == 0)
-                                ketqua =
-                                    "Không chia cho 0";
-                            else
-                                ketqua =
-                                    (a / b).ToString();
-                            break;
-
-                        default:
-                            ketqua =
-                                "Phép toán không hợp lệ";
-                            break;
-                    }
-
-                    byte[] gui =
-                        Encoding.UTF8.GetBytes(
-                            ketqua
-                        );
-
-                    stream.Write(
-                        gui,
-                        0,
-                        gui.Length
-                    );
-
-                    Console.WriteLine(
-                        "Kết quả: " +
-                        ketqua
-                    );
-
-                    stream.Close();
                     client.Close();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(
-                        "Lỗi: " +
-                        ex.Message
-                    );
+                    Console.WriteLine("Loi: " + ex.Message);
                 }
+            }
+        }
+
+        // Hàm xử lý chính: Phân loại lệnh CALC hoặc SAVE
+        static string ExecuteServerLogic(string request)
+        {
+            try
+            {
+                string[] parts = request.Split('|');
+                string command = parts[0];
+
+                if (command == "CALC")
+                {
+                    double a = double.Parse(parts[1]);
+                    string pt = parts[2];
+                    double b = double.Parse(parts[3]);
+
+                    return PerformMath(a, pt, b);
+                }
+                /*else if (command == "SAVE")
+                {
+                    string dataToSave = parts[1];
+                    // Lưu vào file server_history.txt cùng thư mục với file .exe
+                    File.AppendAllText("server_history.txt", dataToSave + Environment.NewLine);
+                    Console.WriteLine("--> Da luu lich su: " + dataToSave);
+                    return "SUCCESS";
+                }*/
+                else if (command == "SAVE")
+                {
+                    try
+                    {
+                        string dataToSave = parts[1];
+
+                        // Lấy đường dẫn thư mục đang chạy .exe
+                        string basePath = AppDomain.CurrentDomain.BaseDirectory;
+
+                        // Tạo thư mục History
+                        string folderPath = Path.Combine(basePath, "History");
+
+                        if (!Directory.Exists(folderPath))
+                        {
+                            Directory.CreateDirectory(folderPath);
+                        }
+
+                        // File lưu lịch sử
+                        string filePath = Path.Combine(folderPath, "server_history.txt");
+
+                        // Ghi file
+                        File.AppendAllText(filePath, dataToSave + Environment.NewLine);
+
+                        Console.WriteLine("--> Da luu lich su: " + dataToSave);
+                        Console.WriteLine("--> Da luu tai: " + filePath);
+
+                        return "SUCCESS";
+                    }
+                    catch (Exception ex)
+                    {
+                        return "Loi SAVE: " + ex.Message;
+                    }
+                }
+
+                // Trường hợp Client gửi theo kiểu cũ (không có CALC|)
+                return "Lenh khong hop le!";
+            }
+            catch
+            {
+                return "Loi dinh dang du lieu!";
+            }
+        }
+
+        // Hàm thực hiện phép tính
+        static string PerformMath(double a, string pheptoan, double b)
+        {
+            switch (pheptoan)
+            {
+                case "+": return (a + b).ToString();
+                case "-": return (a - b).ToString();
+                case "*": return (a * b).ToString();
+                case "/":
+                    return (b == 0) ? "Khong the chia cho 0" : (a / b).ToString();
+                default: return "Phep toan sai";
             }
         }
     }
