@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MayTinh/MayTinh.csproj" />
+  <Project Path="Server/Server.csproj" Id="c1f28678-422f-407a-8135-719b0b76a309" />
+</Solution>
